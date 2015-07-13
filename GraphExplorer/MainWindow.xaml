@@ -1,0 +1,64 @@
+﻿<Window x:Class="GraphExplorer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:go="http://schemas.nwoods.com/GoXam"
+        DataContext="{Binding Source={StaticResource Locator}, Path=Main}"
+        Title="MainWindow" WindowState="Maximized" WindowStyle="SingleBorderWindow" SizeToContent="WidthAndHeight" >
+    <Window.Resources>
+        <!-- define a conversion from String to Color -->
+        <go:StringColorConverter x:Key="theStringColorConverter" />
+        <DataTemplate x:Key="NodeTemplate">
+            <Grid  go:Node.SelectionAdorned="True" go:Node.ToSpot="LeftSide" go:Node.FromSpot="RightSide" >
+                <!-- a NodePanel shows a background shape and places the other panel children inside the shape -->
+                <go:NodePanel>
+                    <!-- this shape gets the geometry defined by the NodePanel.Figure attached property -->
+                    <go:NodeShape go:NodePanel.Figure="{Binding Data.Shape}" Stroke="Black" StrokeThickness="1">
+                        <Shape.Fill>
+                            <!-- use a fancier brush than a simple solid color -->
+                            <LinearGradientBrush StartPoint="0.0 0.0" EndPoint="1.0 0.0">
+                                <LinearGradientBrush.GradientStops>
+                                    <GradientStop Color="{Binding Path=Data.Color, Converter={StaticResource theStringColorConverter}}" Offset="0.0" />
+                                    <GradientStop Color="White" Offset="0.5" />
+                                    <GradientStop Color="{Binding Path=Data.Color, Converter={StaticResource theStringColorConverter}}" Offset="1.0" />
+                                </LinearGradientBrush.GradientStops>
+                            </LinearGradientBrush>
+                        </Shape.Fill>
+                    </go:NodeShape>
+                    <!-- this TextBlock element is arranged inside the NodePanel’s shape -->
+                    <TextBlock Text="{Binding Path=Data.Key}" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </go:NodePanel>
+                <TextBlock Text="{Binding Path=Data.Type}" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,5,0,0" />
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="LinkTemplate">
+            <go:LinkPanel go:Part.SelectionElementName="Path" go:Part.SelectionAdorned="True">
+                <go:LinkShape x:Name="Path" go:LinkPanel.IsLinkShape="True" Stroke="Black" StrokeThickness="1" />
+                <!-- the arrowhead -->
+                <Polygon Fill="Black" Points="8 4 0 8 2 4 0 0" go:LinkPanel.Alignment="1 0.5" go:LinkPanel.Index="-1" go:LinkPanel.Orientation="Along" />
+                <!-- when using a GraphLinksModel, bind to MyLinkData.Cost as a label -->
+                <StackPanel Background="White">
+                    <TextBlock Text="{Binding Path=Data.Type}" Foreground="Blue" />
+                </StackPanel>
+            </go:LinkPanel>
+        </DataTemplate>
+
+        
+    </Window.Resources>
+    <DockPanel>
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal">
+            <Button Margin="3" Command="{Binding LoadCommand}" DockPanel.Dock="Top">Load All Entities</Button>
+            <TextBlock Margin="3" VerticalAlignment="Center">Username: </TextBlock>
+            <TextBox Margin="3" VerticalAlignment="Center" Text="{Binding SearchText}" MinWidth="200" />
+            <Button Margin="3" Command="{Binding SearchCommand}" DockPanel.Dock="Top">Search</Button>
+        </StackPanel>
+        <go:Diagram NodeTemplate="{StaticResource NodeTemplate}" LinkTemplate="{StaticResource LinkTemplate}" Model="{Binding GraphModel}">
+            <go:Diagram.LayoutManager>
+                <go:LayoutManager AnimationTime="500" />
+            </go:Diagram.LayoutManager>
+            <go:Diagram.Layout>
+                <go:ForceDirectedLayout DefaultSpringLength="50" DefaultElectricalCharge="100" MaxIterations="50" />
+            </go:Diagram.Layout>
+        </go:Diagram>
+    </DockPanel>
+</Window>
