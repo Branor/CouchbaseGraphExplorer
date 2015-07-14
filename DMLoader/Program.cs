@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -29,7 +30,40 @@ namespace MultiGetSample
                 tasks.Add(task);
             }
 
+            tasks.Add(GenerateViews());
+
             Task.WaitAll(tasks.ToArray());
+        }
+
+        private static async Task GenerateViews()
+        {
+              using (var cluster = new Cluster("couchbaseClients/couchbase"))
+            {
+                using (var bucket = cluster.OpenBucket())
+                {
+                    var manager = bucket.CreateManager(ConfigurationManager.AppSettings["Username"], ConfigurationManager.AppSettings["Password"]);
+                    var entities = await manager.GetDesignDocumentAsync("entities");
+                    var links = await manager.GetDesignDocumentAsync("links");
+
+                    if(entities == null || string.IsNullOrEmpty(entities.Value) || entities.Exception != null)
+                    {
+                        using (StreamReader sr = new StreamReader("entities.json"))
+                        {
+                            var json = await sr.ReadToEndAsync();
+                            var res = await manager.InsertDesignDocumentAsync("entities", json);
+                        }
+                    }
+
+                    if (links == null || string.IsNullOrEmpty(links.Value) || links.Exception != null)
+                    {
+                        using (StreamReader sr = new StreamReader("links.json"))
+                        {
+                            var json = await sr.ReadToEndAsync();
+                            var res = await manager.InsertDesignDocumentAsync("links", json);
+                        }
+                    }
+                }
+            }
         }
 
         private static Task<Dictionary<string, string>> ParseLogAsync(string path)

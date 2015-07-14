@@ -11,6 +11,11 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Couchbase.N1QL;
 using Couchbase.Views;
+using Newtonsoft.Json;
+using System.IO;
+using System.Configuration;
+using Couchbase.Management;
+using System.Windows;
 
 namespace GraphExplorer.ViewModels
 {
@@ -28,57 +33,26 @@ namespace GraphExplorer.ViewModels
     /// </summary>
     public class MainViewModel : ViewModelBase
     {
+        #region Fields
+        private const int LINK_TRAVERSAL_DEPTH = 2;
+        
         private GraphLinksModel<NodeData, String, String, LinkData> _graphModel;
         private Cluster _cluster;
         private IBucket _bucket;
-
+        private IBucketManager _manager;
         private ObservableCollection<NodeData> _nodes { get; set; }
         private ObservableCollection<LinkData> _links { get; set; }
+        
+        private string _SearchText;
+        private RelayCommand _LoadCommand;
+        private RelayCommand _SearchCommand;
+        #endregion 
 
-        /// <summary>
-        /// Initializes a new instance of the MainViewModel class.
-        /// </summary>
-        public MainViewModel()
-        {
-            _cluster = new Cluster("couchbaseClients/couchbase");
-            _bucket = _cluster.OpenBucket();
-
-            // model is a GraphLinksModel using instances of NodeData as the node data
-            // and LinkData as the link data
-            _graphModel = new GraphLinksModel<NodeData, String, String, LinkData>();
-            _graphModel.Modifiable = true;
-
-            _nodes = new ObservableCollection<NodeData>();
-            _links = new ObservableCollection<LinkData>();
-            //      _nodes = new ObservableCollection<NodeData>() {
-            //        new NodeData() { Key="Alpha", Color="LightBlue" },
-            //        new NodeData() { Key="Beta", Color="Orange" },
-            //        new NodeData() { Key="Gamma", Color="LightGreen" },
-            //        new NodeData() { Key="Delta", Color="Pink" }
-            //      };
-
-            //      _links = new ObservableCollection<LinkData>() {
-            //    new LinkData() { From="Alpha", To="Beta" },
-            //    new LinkData() { From="Alpha", To="Gamma" },
-            //    new LinkData() { From="Beta", To="Beta" },
-            //    new LinkData() { From="Gamma", To="Delta" },
-            //    new LinkData() { From="Delta", To="Alpha" }
-            //};
-
-            _graphModel.NodesSource = _nodes;
-            _graphModel.LinksSource = _links;
-
-            SearchText = "d\\appnaciai3";
-
-        }
-
+        #region Properties
         public GraphLinksModel<NodeData, String, String, LinkData> GraphModel
         {
             get { return _graphModel; }
         }
-
-
-        private string _SearchText;
         public string SearchText
         {
             get { return _SearchText; }
@@ -88,9 +62,57 @@ namespace GraphExplorer.ViewModels
                 RaisePropertyChanged<string>(() => this.SearchText);
             }
         }
+        
+        private List<String> _Fields;
+        public List<String> Fields
+        {
+            get { return _Fields; }
+            set
+            {
+                _Fields = value;
+                RaisePropertyChanged<List<String>>(() => this.Fields);
+            }
+        }
 
+        
+        private ObservableCollection<EntityModel> _EntityModels;
+        public ObservableCollection<EntityModel> EntityModels
+        {
+            get { return _EntityModels; }
+            set
+            {
+                _EntityModels = value;
+                RaisePropertyChanged<ObservableCollection<EntityModel>>(() => this.EntityModels);
+            }
+        }
+        
+        private ObservableCollection<EntityRelationModel> _EntityRelationModels;
+        public ObservableCollection<EntityRelationModel> EntityRelationModels
+        {
+            get { return _EntityRelationModels; }
+            set
+            {
+                _EntityRelationModels = value;
+                RaisePropertyChanged<ObservableCollection<EntityRelationModel>>(() => this.EntityRelationModels);
+            }
+        }
+                
+        private string _SelectedField;
+        public string SelectedField
+        {
+            get { return _SelectedField; }
+            set
+            {
+                _SelectedField = value;
+                RaisePropertyChanged<string>(() => this.SelectedField);
+                AddEntityModelCommand.RaiseCanExecuteChanged();
+                AddEntityRelationModelCommand.RaiseCanExecuteChanged();
+            }
+        }
+                
+        #endregion
 
-        private RelayCommand _LoadCommand;
+        #region Commands
         public RelayCommand LoadCommand
         {
             get
@@ -109,10 +131,6 @@ namespace GraphExplorer.ViewModels
                 return _LoadCommand;
             }
         }
-
-
-        private RelayCommand _SearchCommand;
-        private const int LINK_TRAVERSAL_DEPTH = 2;
         public RelayCommand SearchCommand
         {
             get
@@ -132,6 +150,141 @@ namespace GraphExplorer.ViewModels
             }
         }
 
+        
+        private RelayCommand _AddEntityModelCommand;
+        public RelayCommand AddEntityModelCommand
+        {
+            get
+            {
+                if (_AddEntityModelCommand == null)
+                {
+                    _AddEntityModelCommand = new RelayCommand(() =>
+                    {
+                        EntityModels.Add(new EntityModel { Field = SelectedField, Name = SelectedField });
+                    }, () => SelectedField != null);
+                }
+                return _AddEntityModelCommand;
+            }
+        }
+
+        
+        private RelayCommand _AddEntityRelationModelCommand;
+        public RelayCommand AddEntityRelationModelCommand
+        {
+            get
+            {
+                if (_AddEntityRelationModelCommand == null)
+                {
+                    _AddEntityRelationModelCommand = new RelayCommand(() =>
+                    {
+                        EntityRelationModels.Add(new EntityRelationModel { From = SelectedField, To = SelectedField, Name = SelectedField + "_"  + SelectedField });
+                    }, () => SelectedField != null);
+                }
+                return _AddEntityRelationModelCommand;
+            }
+        }
+
+        
+        private RelayCommand<object> _RemoveItemCommand;
+        public RelayCommand<object> RemoveItemCommand
+        {
+            get
+            {
+                if (_RemoveItemCommand == null)
+                {
+                    _RemoveItemCommand = new RelayCommand<object>(item =>
+                    {
+                        if (item is EntityModel)
+                            EntityModels.Remove(item as EntityModel);
+                        else if (item is EntityRelationModel)
+                            EntityRelationModels.Remove(item as EntityRelationModel);
+                    });
+                }
+                return _RemoveItemCommand;
+            }
+        }
+      
+        
+        private RelayCommand _ApplyEntityModelsCommand;
+        public RelayCommand ApplyEntityModelsCommand
+        {
+            get
+            {
+                if (_ApplyEntityModelsCommand == null)
+                {
+                    _ApplyEntityModelsCommand = new RelayCommand(async () =>
+                    {
+                        await ApplyEntityViews(EntityModels);
+                    });
+                }
+                return _ApplyEntityModelsCommand;
+            }
+        }
+
+        
+        private RelayCommand _ApplyEntityRelationModelsCommand;
+        public RelayCommand ApplyEntityRelationModelsCommand
+        {
+            get
+            {
+                if (_ApplyEntityRelationModelsCommand == null)
+                {
+                    _ApplyEntityRelationModelsCommand = new RelayCommand(async () =>
+                    {
+                        await ApplyEntityRelationViews(EntityRelationModels);
+                    });
+                }
+                return _ApplyEntityRelationModelsCommand;
+            }
+        }
+        
+        #endregion
+
+        /// <summary>
+        /// Initializes a new instance of the MainViewModel class.
+        /// </summary>
+        public MainViewModel()
+        {
+            EntityModels = new ObservableCollection<EntityModel>();
+            EntityRelationModels = new ObservableCollection<EntityRelationModel>();
+
+            _cluster = new Cluster("couchbaseClients/couchbase");
+            _bucket = _cluster.OpenBucket();
+            _manager = _bucket.CreateManager(ConfigurationManager.AppSettings["Username"], ConfigurationManager.AppSettings["Password"]);
+
+            // model is a GraphLinksModel using instances of NodeData as the node data
+            // and LinkData as the link data
+            _graphModel = new GraphLinksModel<NodeData, String, String, LinkData>();
+            _graphModel.Modifiable = true;
+
+            _nodes = new ObservableCollection<NodeData>();
+            _links = new ObservableCollection<LinkData>();
+
+            _graphModel.NodesSource = _nodes;
+            _graphModel.LinksSource = _links;
+            
+            SearchText = "d\\appnaciai3";
+
+            LoadSchema();
+            LoadState();
+        }
+
+        private async void LoadState()
+        {
+            EntityModels = await LoadModelState<EntityModel>("entitymodels");
+            EntityRelationModels = await LoadModelState<EntityRelationModel>("entityrelationmodels");
+        }
+
+        private void LoadSchema()
+        {
+            Task.Run(() =>
+            {
+                var schema = _bucket.Get<string>("schema");
+                if (schema != null && schema.Success)
+                    Fields = new List<string>(JsonConvert.DeserializeObject<string[]>(schema.Value));
+            });
+        }
+        
         private async void TraverseFromEntity(string filter)
         {
             List<LinkData> links = new List<LinkData>();
@@ -197,6 +350,7 @@ namespace GraphExplorer.ViewModels
                 return t.Result.Rows.Select(row => new LinkData { From = row.Key[0], To = row.Key[1], Type = row.Key[2] }).ToList();
             });
         }
+
         private Task LoadAllNodesAndLinks(string filter)
         {
             List<Task> tasks = new List<Task>();
@@ -216,6 +370,59 @@ namespace GraphExplorer.ViewModels
             tasks.Add(links);
 
             return Task.WhenAll(tasks.ToArray());
+        }
+
+        private async Task ApplyEntityViews(ObservableCollection<EntityModel> models)
+        {
+            await SaveModelState<EntityModel>("entitymodels", models);
+            var entityTemplate = " if(doc.{0}) emit([doc.{0}, '{1}']); ";
+            var js = models.Select(m => string.Format(entityTemplate, m.Field, m.Name)).Aggregate((s1, s2) => s1 + " " + s2);
+
+            using (StreamReader sr = new StreamReader("entities.json"))
+            {
+                var designDocTemplate = await sr.ReadToEndAsync();
+                var designDoc = designDocTemplate.Replace("{0}", js);
+                var res = await _manager.UpdateDesignDocumentAsync("entities", designDoc);
+                if (res.Success)
+                    MessageBox.Show("Entity indexing updated.");
+            }
+        }
+        private async Task ApplyEntityRelationViews(ObservableCollection<EntityRelationModel> models)
+        {
+            await SaveModelState<EntityRelationModel>("entityrelationmodels", models);
+            var linkTemplate = "if(doc.{0} && doc.{1})  emit([doc.{0}, doc.{1}, '{2}']); ";
+
+            var js = models.Select(m => string.Format(linkTemplate, m.From, m.To, m.Name)).Aggregate((s1, s2) => s1 + " " + s2);
+
+            using (StreamReader sr = new StreamReader("links.json"))
+            {
+                var designDocTemplate = await sr.ReadToEndAsync();
+                var designDoc = designDocTemplate.Replace("{0}", js);
+                var res = await _manager.UpdateDesignDocumentAsync("links", designDoc);
+                if (res.Success)
+                    MessageBox.Show("Entity links indexing updated.");
+            }
+        }
+
+        private async Task SaveModelState<T>(string name, ObservableCollection<T> models)
+        {
+            var state = JsonConvert.SerializeObject(models);
+            using (StreamWriter sw = new StreamWriter(name + ".json"))
+            {
+                await sw.WriteAsync(state);
+            }
+        }
+        private async Task<ObservableCollection<T>> LoadModelState<T>(string name)
+        {
+            if (!File.Exists(name + ".json"))
+                return new ObservableCollection<T>();
+
+            using (StreamReader sr = new StreamReader(name + ".json"))
+            {
+                var json = await sr.ReadToEndAsync();
+                var state = JsonConvert.DeserializeObject<ObservableCollection<T>>(json);
+                return state;
+            }
         }
     }
 }
