@@ -15,12 +15,6 @@ namespace MultiGetSample
 {
     class Program
     {
-        public class Data
-        {
-            public string Type { get; set; }
-            public List<string> Styles { get; set; }
-        }
-
         static void Main(string[] args)
         {
             if (args.Length < 1)
@@ -38,11 +32,11 @@ namespace MultiGetSample
             Task.WaitAll(tasks.ToArray());
         }
 
-        private static Task<List<string>> ParseLogAsync(string path)
+        private static Task<Dictionary<string, string>> ParseLogAsync(string path)
         {
             return Task.Run(() =>
             {
-                List<string> json = new List<string>();
+                Dictionary<string, string> json = new Dictionary<string, string>();
 
                 if (!File.Exists(path))
                     return json;
@@ -51,6 +45,7 @@ namespace MultiGetSample
                 {
                     var header = sr.ReadLine();
                     var fields = UniqueHeaders(header.Split(','));
+                    json.Add("schema", JsonConvert.SerializeObject(fields));
                     string line = null;
                     while ((line = sr.ReadLine()) != null)
                     {
@@ -62,10 +57,9 @@ namespace MultiGetSample
                         for (int i = 0; i < fields.Length; i++)
                             dict.Add(fields[i], ParseValue(values[i]));
 
-                        json.Add(JsonConvert.SerializeObject(dict));
+                        json.Add(Guid.NewGuid().ToString(), JsonConvert.SerializeObject(dict));
                     }
                 }
-
 
                 return json;
             });
@@ -91,13 +85,13 @@ namespace MultiGetSample
                 return p;
         }
 
-        private static async Task BulkUpsertEntitiesAsync(List<string> entities)
+        private static async Task BulkUpsertEntitiesAsync(Dictionary<string, string> entities)
         {
             using (var cluster = new Cluster("couchbaseClients/couchbase"))
             {
                 using (var bucket = cluster.OpenBucket())
                 {
-                    var tasks = entities.Select(e => bucket.UpsertAsync(Guid.NewGuid().ToString(), e)).ToArray();
+                    var tasks = entities.Select(e => bucket.UpsertAsync(e.Key, e.Value)).ToArray();
                     await Task.WhenAll(tasks);
                 }
             }
