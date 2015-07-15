@@ -263,7 +263,7 @@ namespace GraphExplorer.ViewModels
             _graphModel.NodesSource = _nodes;
             _graphModel.LinksSource = _links;
             
-            SearchText = "d\\appnaciai3";
+            SearchText = ConfigurationManager.AppSettings["DefaultEntity"];
 
             LoadSchema();
             LoadState();
