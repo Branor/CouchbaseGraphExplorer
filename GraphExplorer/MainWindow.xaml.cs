@@ -24,5 +24,10 @@ namespace GraphExplorer
         {
             InitializeComponent();
         }
+
+        private void ProgressBar_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+
+        }
     }
 }

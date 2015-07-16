@@ -14,6 +14,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{FD8D56
 		.nuget\NuGet.targets = .nuget\NuGet.targets
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DragDropBehavior", "DragDrop\DragDropBehavior.csproj", "{53F54828-2800-437C-9712-6096651A0FEC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +30,10 @@ Global
 		{6962ED95-020F-442C-882A-99324FA8419D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6962ED95-020F-442C-882A-99324FA8419D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6962ED95-020F-442C-882A-99324FA8419D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{53F54828-2800-437C-9712-6096651A0FEC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{53F54828-2800-437C-9712-6096651A0FEC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{53F54828-2800-437C-9712-6096651A0FEC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{53F54828-2800-437C-9712-6096651A0FEC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

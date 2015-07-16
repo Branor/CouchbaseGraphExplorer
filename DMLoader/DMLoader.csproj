@@ -67,6 +67,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="log.txt" />
     <None Include="App.config" />
     <Content Include="entities.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -74,6 +75,7 @@
     <Content Include="links.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="couchbase_template.json" />
     <None Include="packages.config">
       <SubType>Designer</SubType>
     </None>

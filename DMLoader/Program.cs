@@ -1,5 +1,6 @@
 ﻿using Couchbase;
 using Couchbase.Configuration.Client;
+using Couchbase.Core;
 using CsvHelper;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -16,6 +17,10 @@ namespace MultiGetSample
 {
     class Program
     {
+        private static Cluster _cluster;
+        private static IBucket _bucket;
+        private static bool _debug = false;
+
         static void Main(string[] args)
         {
             if (args.Length < 1)
@@ -24,10 +29,24 @@ namespace MultiGetSample
                 return;
             }
 
+            _debug = ConfigurationManager.AppSettings["Debug"] == "true";
+            _cluster = new Cluster("couchbaseClients/couchbase");
+            _bucket = _cluster.OpenBucket();
+            
             List<Task> tasks = new List<Task>();
-            foreach(var log in args) {
-                var task = ParseLogAsync(log).ContinueWith(t => BulkUpsertEntitiesAsync(t.Result));
-                tasks.Add(task);
+            foreach (var log in args)
+            {
+                if (_debug)
+                    Enumerable.Range(1, 1000).ToList().ForEach(i =>
+                    {
+                        var task = ParseLogAsync(log).ContinueWith(t => BulkUpsertEntitiesAsync(t.Result));
+                        tasks.Add(task);
+                    });
+                else
+                {
+                    var task = ParseLogAsync(log).ContinueWith(t => BulkUpsertEntitiesAsync(t.Result));
+                    tasks.Add(task);
+                }
             }
 
             tasks.Add(GenerateViews());
@@ -37,7 +56,7 @@ namespace MultiGetSample
 
         private static async Task GenerateViews()
         {
-              using (var cluster = new Cluster("couchbaseClients/couchbase"))
+            using (var cluster = new Cluster("couchbaseClients/couchbase"))
             {
                 using (var bucket = cluster.OpenBucket())
                 {
@@ -45,7 +64,7 @@ namespace MultiGetSample
                     var entities = await manager.GetDesignDocumentAsync("entities");
                     var links = await manager.GetDesignDocumentAsync("links");
 
-                    if(entities == null || string.IsNullOrEmpty(entities.Value) || entities.Exception != null)
+                    if (entities == null || string.IsNullOrEmpty(entities.Value) || entities.Exception != null)
                     {
                         using (StreamReader sr = new StreamReader("entities.json"))
                         {
@@ -68,21 +87,26 @@ namespace MultiGetSample
 
         private static Task<Dictionary<string, string>> ParseLogAsync(string path)
         {
-            return Task.Run(() =>
+            return Task.Run(async () =>
             {
                 Dictionary<string, string> json = new Dictionary<string, string>();
 
                 if (!File.Exists(path))
                     return json;
 
+                string line = null;
                 using (StreamReader sr = new StreamReader(path))
                 {
                     var header = sr.ReadLine();
                     var fields = UniqueHeaders(header.Split(','));
                     json.Add("schema", JsonConvert.SerializeObject(fields));
-                    string line = null;
-                    while ((line = sr.ReadLine()) != null)
+                    do
                     {
+                        var counterT = _bucket.IncrementAsync("counter");
+                        line = await sr.ReadLineAsync();
+                        if (line == null)
+                            break;
+
                         var values = line.Split(',');
                         if (fields.Length != values.Length)
                             continue;
@@ -91,8 +115,22 @@ namespace MultiGetSample
                         for (int i = 0; i < fields.Length; i++)
                             dict.Add(fields[i], ParseValue(values[i]));
 
-                        json.Add(Guid.NewGuid().ToString(), JsonConvert.SerializeObject(dict));
+                        #region Debug
+                        if (_debug)
+                        {
+                            if (dict.ContainsKey("Log_Time"))
+                            {
+                                var date = DateTime.Parse(dict["Log_Time"].ToString());
+                                var newDate = date.AddMinutes(new Random().Next(43200) - 43200 / 2);
+                                dict["Log_Time"] = newDate.ToString("yyyy-MM-dd HH:mm:ss");
+                            }
+                        }
+                        #endregion
+
+                        var counter = await counterT;
+                        json.Add(counter.Value.ToString(), JsonConvert.SerializeObject(dict));
                     }
+                    while (line != null);
                 }
 
                 return json;
@@ -121,14 +159,8 @@ namespace MultiGetSample
 
         private static async Task BulkUpsertEntitiesAsync(Dictionary<string, string> entities)
         {
-            using (var cluster = new Cluster("couchbaseClients/couchbase"))
-            {
-                using (var bucket = cluster.OpenBucket())
-                {
-                    var tasks = entities.Select(e => bucket.UpsertAsync(e.Key, e.Value)).ToArray();
-                    await Task.WhenAll(tasks);
-                }
-            }
+            var tasks = entities.Select(e => _bucket.UpsertAsync(e.Key, e.Value)).ToArray();
+            await Task.WhenAll(tasks);
         }
     }
 }

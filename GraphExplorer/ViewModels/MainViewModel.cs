@@ -16,6 +16,7 @@ using System.IO;
 using System.Configuration;
 using Couchbase.Management;
 using System.Windows;
+using System.Windows.Input;
 
 namespace GraphExplorer.ViewModels
 {
@@ -35,6 +36,7 @@ namespace GraphExplorer.ViewModels
     {
         #region Fields
         private const int LINK_TRAVERSAL_DEPTH = 2;
+        private int PageSize = 1000;
         
         private GraphLinksModel<NodeData, String, String, LinkData> _graphModel;
         private Cluster _cluster;
@@ -49,6 +51,54 @@ namespace GraphExplorer.ViewModels
         #endregion 
 
         #region Properties
+        
+        private bool _IsBusy;
+        public bool IsBusy
+        {
+            get { return _IsBusy; }
+            set
+            {
+                _IsBusy = value;
+                RaisePropertyChanged<bool>(() => this.IsBusy);
+            }
+        }
+
+        
+        private bool _IsIndeterminate;
+        public bool IsIndeterminate
+        {
+            get { return _IsIndeterminate; }
+            set
+            {
+                _IsIndeterminate = value;
+                RaisePropertyChanged<bool>(() => this.IsIndeterminate);
+            }
+        }
+
+        
+        private long _MaximumProgress;
+        public long MaximumProgress
+        {
+            get { return _MaximumProgress; }
+            set
+            {
+                _MaximumProgress = value;
+                RaisePropertyChanged<long>(() => this.MaximumProgress);
+            }
+        }
+
+        
+        private long _Progress;
+        public long Progress
+        {
+            get { return _Progress; }
+            set
+            {
+                _Progress = value;
+                RaisePropertyChanged<long>(() => this.Progress);
+            }
+        }
+        
         public GraphLinksModel<NodeData, String, String, LinkData> GraphModel
         {
             get { return _graphModel; }
@@ -96,6 +146,31 @@ namespace GraphExplorer.ViewModels
                 RaisePropertyChanged<ObservableCollection<EntityRelationModel>>(() => this.EntityRelationModels);
             }
         }
+
+        
+        private EntityModel _SelectedEntityModel;
+        public EntityModel SelectedEntityModel
+        {
+            get { return _SelectedEntityModel; }
+            set
+            {
+                _SelectedEntityModel = value;
+                RaisePropertyChanged<EntityModel>(() => this.SelectedEntityModel);
+            }
+        }
+
+        
+        private string _SelectedAttribute;
+        public string SelectedAttribute
+        {
+            get { return _SelectedAttribute; }
+            set
+            {
+                _SelectedAttribute = value;
+                RaisePropertyChanged<string>(() => this.SelectedAttribute);
+            }
+        }
+        
                 
         private string _SelectedField;
         public string SelectedField
@@ -110,6 +185,7 @@ namespace GraphExplorer.ViewModels
             }
         }
                 
+
         #endregion
 
         #region Commands
@@ -121,11 +197,13 @@ namespace GraphExplorer.ViewModels
                 {
                     _LoadCommand = new RelayCommand(async () =>
                     {
+                        IsBusy = true;
                         _graphModel.StartTransaction("DistinctNodes");
                         _nodes.Clear();
                         _links.Clear();
                         await LoadAllNodesAndLinks(null);
                         _graphModel.CommitTransaction("DistinctNodes");
+                        IsBusy = false;
                     });
                 }
                 return _LoadCommand;
@@ -137,19 +215,42 @@ namespace GraphExplorer.ViewModels
             {
                 if (_SearchCommand == null)
                 {
-                    _SearchCommand = new RelayCommand(() =>
+                    _SearchCommand = new RelayCommand(async () =>
                     {
+                        IsBusy = true;
                         _graphModel.StartTransaction("Clear");
                         _nodes.Clear();
                         _links.Clear();
                         _graphModel.CommitTransaction("Clear");
-                        TraverseFromEntity(SearchText);
+                        await TraverseFromEntity(SearchText);
+                        IsBusy = false;
                     });
                 }
                 return _SearchCommand;
             }
         }
 
+
+        private RelayCommand _MaterializeDataModelCommand;
+        public RelayCommand MaterializeDataModelCommand
+        {
+            get
+            {
+                if (_MaterializeDataModelCommand == null)
+                {
+                    _MaterializeDataModelCommand = new RelayCommand(async () =>
+                    {
+                        IsBusy = true;
+
+                        await MaterializeDataModel();
+
+                        IsBusy = false;
+                    });
+                }
+                return _MaterializeDataModelCommand;
+            }
+        }
+      
         
         private RelayCommand _AddEntityModelCommand;
         public RelayCommand AddEntityModelCommand
@@ -160,7 +261,7 @@ namespace GraphExplorer.ViewModels
                 {
                     _AddEntityModelCommand = new RelayCommand(() =>
                     {
-                        EntityModels.Add(new EntityModel { Field = SelectedField, Name = SelectedField });
+                        EntityModels.Add(new EntityModel { Field = SelectedField, Name = SelectedField, TimeField = Fields[0], Attributes = new ObservableCollection<string> { SelectedField } });
                     }, () => SelectedField != null);
                 }
                 return _AddEntityModelCommand;
@@ -237,6 +338,26 @@ namespace GraphExplorer.ViewModels
                 return _ApplyEntityRelationModelsCommand;
             }
         }
+
+        
+        private RelayCommand<KeyEventArgs> _KeyUpCommand;
+        public RelayCommand<KeyEventArgs> KeyUpCommand
+        {
+            get
+            {
+                if (_KeyUpCommand == null)
+                {
+                    _KeyUpCommand = new RelayCommand<KeyEventArgs>(args =>
+                    {
+                        if (args.Key == Key.Delete || args.Key == Key.Back)
+                            if (SelectedEntityModel != null && SelectedAttribute != null)
+                                SelectedEntityModel.Attributes.Remove(SelectedAttribute);
+                    });
+                }
+                return _KeyUpCommand;
+            }
+        }
+      
         
         #endregion
 
@@ -245,6 +366,11 @@ namespace GraphExplorer.ViewModels
         /// </summary>
         public MainViewModel()
         {
+            if (ViewModelBase.IsInDesignModeStatic)
+                return;
+
+            IsBusy = false;
+            IsIndeterminate = true;
             EntityModels = new ObservableCollection<EntityModel>();
             EntityRelationModels = new ObservableCollection<EntityRelationModel>();
 
@@ -264,6 +390,8 @@ namespace GraphExplorer.ViewModels
             _graphModel.LinksSource = _links;
             
             SearchText = ConfigurationManager.AppSettings["DefaultEntity"];
+            int.TryParse(ConfigurationManager.AppSettings["PageSize"], out PageSize);
+            PageSize = PageSize > 0 ? PageSize : 1000;
 
             LoadSchema();
             LoadState();
@@ -285,7 +413,7 @@ namespace GraphExplorer.ViewModels
             });
         }
         
-        private async void TraverseFromEntity(string filter)
+        private async Task TraverseFromEntity(string filter)
         {
             List<LinkData> links = new List<LinkData>();
             List<NodeData> nodes = new List<NodeData>();
@@ -319,7 +447,7 @@ namespace GraphExplorer.ViewModels
 
         private Task<List<NodeData>> GetEntities(string filter)
         {
-            var query = _bucket.CreateQuery("entities", "all").Group(true);
+            var query = _bucket.CreateQuery("entities", "all").GroupLevel(2);
             if (!string.IsNullOrEmpty(filter))
                 query = query.StartKey(new string[] { filter, null }).EndKey(new string[] { filter, "\uefff" }).InclusiveEnd(true);
 
@@ -375,8 +503,8 @@ namespace GraphExplorer.ViewModels
         private async Task ApplyEntityViews(ObservableCollection<EntityModel> models)
         {
             await SaveModelState<EntityModel>("entitymodels", models);
-            var entityTemplate = " if(doc.{0}) emit([doc.{0}, '{1}']); ";
-            var js = models.Select(m => string.Format(entityTemplate, m.Field, m.Name)).Aggregate((s1, s2) => s1 + " " + s2);
+            var entityTemplate = "['{0}', '{1}', '{2}']";
+            var js = models.Select(m => string.Format(entityTemplate, m.Field, m.Name, m.TimeField)).Aggregate((s1, s2) => s1 + "," + s2);
 
             using (StreamReader sr = new StreamReader("entities.json"))
             {
@@ -423,6 +551,71 @@ namespace GraphExplorer.ViewModels
                 var state = JsonConvert.DeserializeObject<ObservableCollection<T>>(json);
                 return state;
             }
+        }
+
+        private async Task MaterializeDataModel()
+        {
+            IsIndeterminate = false;
+            var entityMap = EntityModels.ToLookup(e => e.Name);
+
+            using (var materializedBucket = _cluster.OpenBucket("materialized"))
+            {
+                var query = _bucket.CreateQuery("entities", "all").Group(false).Reduce(true);
+                MaximumProgress = (await _bucket.QueryAsync<long>(query)).Rows.First().Value;
+                Progress = 0;
+
+                var limit = PageSize;
+                var offset = 0;
+                int rows = 0;
+                string name, type, id;
+                EntityModel model;
+                List<Task> tasks;
+
+                do
+                {
+                    tasks = new List<Task>();
+                    query = _bucket.CreateQuery("entities", "all").Reduce(false).Limit(limit).Skip(offset);
+                    var result = await _bucket.QueryAsync<dynamic>(query);
+                    var entities = new List<Dictionary<string, object>>();
+
+                    rows = result.Rows.Count();
+                    foreach (var row in result.Rows)
+                    {
+                        id = row.Id;
+                        name = row.Key[0];
+                        type = row.Key[1];
+                        model = entityMap[type].FirstOrDefault();
+                        tasks.Add(MaterializeSingleEntity(id, name, type, model, _bucket, materializedBucket));
+                    }
+
+                    await Task.WhenAll(tasks.ToArray());
+                    tasks = new List<Task>();
+                    offset += rows;
+                    Progress = offset;
+                }
+                while (rows > 0);
+            }
+
+            IsIndeterminate = true;
+        }
+
+        private async Task MaterializeSingleEntity(string id, string name, string type, EntityModel model, IBucket _bucket, IBucket materializedBucket)
+        {
+            var docT =_bucket.GetAsync<string>(id);
+            var counterT = materializedBucket.IncrementAsync(type + "::counter");
+
+            var counter = await counterT;
+            var doc = await docT;
+
+            var raw = JsonConvert.DeserializeObject<Dictionary<string, object>>(doc.Value);
+            var entity = new Dictionary<string, object>();
+            entity.Add("Name", name);
+            entity.Add("Type", type);
+            foreach (var attribute in model.Attributes)
+                if (raw.ContainsKey(attribute))
+                    entity.Add(attribute, raw[attribute]);
+
+            await materializedBucket.UpsertAsync(type + "::" + name + "::" + counter.Value.ToString(), entity);
         }
     }
 }
