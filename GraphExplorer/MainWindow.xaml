@@ -47,10 +47,6 @@
             </go:LinkPanel>
         </DataTemplate>
 
-        <DataTemplate x:Key="RemoveCellTemplate">
-            <Button Command="{Binding Main.RemoveItemCommand, Source={StaticResource Locator}}" CommandParameter="{Binding}" Content="X"/>
-        </DataTemplate>
-
         <DataTemplate x:Key="planetTemplateDrag">
             <DataTemplate.Resources>
                 <Style TargetType="{x:Type Image}">
@@ -63,7 +59,6 @@
                 <TextBlock Text="{Binding .}" TextAlignment="Center" FontWeight="Bold" />
             </StackPanel>
         </DataTemplate>
-
     </Window.Resources>
     <Window.DataContext>
         <Binding Path="Main" Source="{StaticResource Locator}"/>
@@ -105,7 +100,20 @@
                                 <DataGridComboBoxColumn ItemsSource="{Binding Main.Fields, Source={StaticResource Locator}}"  SelectedValueBinding="{Binding TimeField}" Header="Time Field" />
                                 <DataGridComboBoxColumn ItemsSource="{Binding Main.Fields, Source={StaticResource Locator}}"  SelectedValueBinding="{Binding Field}" Header="Field"/>
                                 <DataGridTextColumn Binding="{Binding Name}" ClipboardContentBinding="{x:Null}" Header="Entity Name"/>
-                                <DataGridTemplateColumn IsReadOnly="True" CellTemplate="{StaticResource RemoveCellTemplate}"/>
+                                <DataGridTemplateColumn IsReadOnly="True" Header="Qvx">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Command="{Binding Main.ExportQvxCommand, Source={StaticResource Locator}}" CommandParameter="{Binding Name}" Content="Export"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn IsReadOnly="True">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Command="{Binding Main.RemoveItemCommand, Source={StaticResource Locator}}" CommandParameter="{Binding}" Content="X"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                         <Button Command="{Binding ApplyEntityModelsCommand}" Content="Apply"/>
@@ -124,7 +132,13 @@
                                 <DataGridComboBoxColumn ItemsSource="{Binding Main.Fields, Source={StaticResource Locator}}"  SelectedValueBinding="{Binding From}" Header="From Field" />
                                 <DataGridTextColumn Binding="{Binding Name}" Header="Relation Name"/>
                                 <DataGridComboBoxColumn ItemsSource="{Binding Main.Fields, Source={StaticResource Locator}}"  SelectedValueBinding="{Binding To}" Header="To Field"/>
-                                <DataGridTemplateColumn IsReadOnly="True" CellTemplate="{StaticResource RemoveCellTemplate}"/>
+                                <DataGridTemplateColumn IsReadOnly="True">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Command="{Binding Main.RemoveItemCommand, Source={StaticResource Locator}}" CommandParameter="{Binding}" Content="X"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                         <!--<ListBox ItemsSource="{Binding EntityRelationModels}"  Height="300"  ItemTemplate="{DynamicResource EntityRelationModelTemplate}"/>-->

@@ -1,0 +1,11 @@
+﻿<Window x:Class="QvFacebookConnector.QvSelectMetadataDialog"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Title="Select Metadata" Height="362" Width="306" ShowInTaskbar="False" ResizeMode="NoResize" WindowStartupLocation="CenterOwner" DataContext="{Binding}">
+    <Grid Width="286" Height="323">
+        <Button Content="OK" Height="23" Margin="199,38,0,0" Name="okButton" VerticalAlignment="Top" IsDefault="True" Click="okBbutton_Click" HorizontalAlignment="Left" Width="75" />
+        <Button Content="Cancel" Height="23" Margin="199,67,0,0" Name="button2" VerticalAlignment="Top" IsCancel="True" IsDefault="False" HorizontalAlignment="Left" Width="75" />
+        <Label Content="Select tables to load" Height="28" Margin="12,12,0,0" Name="label3" VerticalAlignment="Top" HorizontalAlignment="Left" Width="123" />
+        <ListBox Height="273" HorizontalAlignment="Left" Margin="12,38,0,0" Name="_MetadataListBox" VerticalAlignment="Top" Width="176" SelectionMode="Extended" />
+    </Grid>
+</Window>

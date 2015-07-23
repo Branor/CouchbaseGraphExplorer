@@ -99,7 +99,9 @@ namespace MultiGetSample
                 {
                     var header = sr.ReadLine();
                     var fields = UniqueHeaders(header.Split(','));
+
                     json.Add("schema", JsonConvert.SerializeObject(fields));
+
                     do
                     {
                         var counterT = _bucket.IncrementAsync("counter");
@@ -140,6 +142,7 @@ namespace MultiGetSample
         private static string[] UniqueHeaders(string[] nonUniqueHeaders)
         {
             List<string> headers = new List<string>(nonUniqueHeaders);
+
             int count = 1;
             for (int i = 0; i < headers.Count; i++)
                 if (headers[i] == "FUTURE_USE")
@@ -148,13 +151,39 @@ namespace MultiGetSample
             return headers.ToArray();
         }
 
+
+        private static string[] MergeSchema(string[] nonUniqueHeaders)
+        {
+            List<string> headers = new List<string>();
+
+            var res = _bucket.Get<string>("schema");
+            if (res.Success && res.Value != null) 
+            {
+                var schema = JsonConvert.DeserializeObject<List<string>>(res.Value);
+                schema.ForEach(s =>
+                {
+                    if (!headers.Contains(s))
+                        headers.Add(s);
+                });
+            }
+
+            nonUniqueHeaders.ToList().ForEach(h =>
+            {
+                if (!headers.Contains(h))
+                    headers.Add(h);
+            });
+
+            return headers.ToArray();
+        }
+
         private static object ParseValue(string p)
         {
+            var value = p.Trim(',', ' ', '"');
             decimal d = 0;
-            if (decimal.TryParse(p, out d))
+            if (decimal.TryParse(value, out d))
                 return d;
             else
-                return p;
+                return value;
         }
 
         private static async Task BulkUpsertEntitiesAsync(Dictionary<string, string> entities)

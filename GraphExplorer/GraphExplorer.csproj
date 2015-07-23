@@ -67,6 +67,9 @@
     <Reference Include="Northwoods.GoWPF">
       <HintPath>..\DMLoader\packages\Northwoods.GoWPF.2.1.6\lib\net45\Northwoods.GoWPF.dll</HintPath>
     </Reference>
+    <Reference Include="QvxLibrary">
+      <HintPath>..\QvxSDK_2.1_x64\QvxLibrary.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Configuration" />
     <Reference Include="System.Data" />
@@ -94,6 +97,8 @@
     <Compile Include="Models\EntityRelationModel.cs" />
     <Compile Include="Models\LinkData.cs" />
     <Compile Include="Models\NodeData.cs" />
+    <Compile Include="Qlik\QvEventLogConnection.cs" />
+    <Compile Include="Qlik\QvEventLogServer.cs" />
     <Compile Include="ViewModels\MainViewModel.cs" />
     <Compile Include="ViewModels\ViewModelLocator.cs" />
     <Page Include="MainWindow.xaml">

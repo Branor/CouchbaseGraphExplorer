@@ -17,6 +17,7 @@ using System.Configuration;
 using Couchbase.Management;
 using System.Windows;
 using System.Windows.Input;
+using GraphExplorer.Qlik;
 
 namespace GraphExplorer.ViewModels
 {
@@ -302,6 +303,23 @@ namespace GraphExplorer.ViewModels
                     });
                 }
                 return _RemoveItemCommand;
+            }
+        }
+
+        
+        private RelayCommand<string> _ExportQvxCommand;
+        public RelayCommand<string> ExportQvxCommand
+        {
+            get
+            {
+                if (_ExportQvxCommand == null)
+                {
+                    _ExportQvxCommand = new RelayCommand<string>(name =>
+                    {
+                        GenerateQvx(name);
+                    });
+                }
+                return _ExportQvxCommand;
             }
         }
       
@@ -616,6 +634,17 @@ namespace GraphExplorer.ViewModels
                     entity.Add(attribute, raw[attribute]);
 
             await materializedBucket.UpsertAsync(type + "::" + name + "::" + counter.Value.ToString(), entity);
+        }
+
+        private Task GenerateQvx(string entityName)
+        {
+            return Task.Run(() =>
+            {
+                IsBusy = true;
+                var server = new QvCouchbaseEntityServer(_bucket, EntityModels.ToList());
+                server.RunStandalone("", "StandalonePipe", "", string.Format(@"c:\temp\{0}.qvx", entityName), string.Format("select * from {0}", entityName));
+                IsBusy = false;
+            });
         }
     }
 }
