@@ -1,0 +1,2 @@
+RowNumber,entity_date,entity_descr,entity_id,entity_lifespan_from,entity_lifespan_to,entity_name,entity_source,entity_type,object_type,object_value
+1,"14:45 26/07/2015","התקבלה התראה מהביטחון בנוגע לקובץ חשוד","10100","15:51 01/01/2015","00:00 31/12/2015","התראה על נסיון phishing","ביטחון","Malware","FILE","bookmark.exe"
