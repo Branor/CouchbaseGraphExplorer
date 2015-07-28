@@ -2,6 +2,7 @@
 using Couchbase.Configuration.Client;
 using Couchbase.Core;
 using CsvHelper;
+using CsvHelper.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -147,26 +148,33 @@ namespace MultiGetSample
                 if (!File.Exists(path))
                     return json;
 
-                string line = null;
                 using (StreamReader sr = new StreamReader(path))
                 {
-                    var header = sr.ReadLine();
-                    var fields = UniqueHeaders(header.Split(','));
+                    var config = new CsvConfiguration();
+                    config.HasHeaderRecord = true;
+                    config.TrimFields = true;
+                    config.TrimHeaders = true;
+                    var parser = new CsvParser(sr, config);
+
+                    string[] row = parser.Read();
+
+                    var fields = UniqueHeaders(row);
 
                     do
                     {
                         var counterT = _bucket.IncrementAsync("counter");
-                        line = await sr.ReadLineAsync();
-                        if (line == null)
+                        row = parser.Read();
+                        if (row == null)
                             break;
 
-                        var values = line.Split(',');
-                        if (fields.Length != values.Length)
-                            continue;
+                        if (fields.Length != row.Length)
+                        {
+                            Console.WriteLine("Warning, header count does not match line count. Headers: {0}, Lines: {1}", fields.Length, row.Length);
+                        }
 
                         Dictionary<string, object> dict = new Dictionary<string, object>();
-                        for (int i = 0; i < fields.Length; i++)
-                            dict.Add(fields[i], ParseValue(values[i]));
+                        for (int i = 0; i < fields.Length && i < row.Length; i++)
+                            dict.Add(fields[i], ParseValue(row[i]));
 
                         #region Debug
                         if (_debug)
@@ -183,7 +191,7 @@ namespace MultiGetSample
                         var counter = await counterT;
                         json.Add(counter.Value.ToString(), JsonConvert.SerializeObject(dict));
                     }
-                    while (line != null);
+                    while (row != null);
 
                     fields = MergeSchema(fields);
                     json.Add("schema", JsonConvert.SerializeObject(fields));
